@@ -49,25 +49,9 @@
                   </a>
                 </li>
                 <li class="main-menu__item">
-                  <div class="main-menu__toggle">
-                    <span class="main-menu__link btn btn-anim">
-                      <span class="btn-caption">Works</span>
-                    </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" version="1.1" viewBox="0 0 20 20">
-                      <path d="M19.6,9.6h-3.9c-.4,0-1.8-.2-1.8-.2-.6,0-1.1-.2-1.6-.6-.5-.3-.9-.8-1.2-1.2-.3-.4-.4-.9-.5-1.4,0,0,0-1.1-.2-1.5V.4c0-.2-.2-.4-.4-.4s-.4.2-.4.4v4.4c0,.4-.2,1.5-.2,1.5,0,.5-.2,1-.5,1.4-.3.5-.7.9-1.2,1.2s-1,.5-1.6.6c0,0-1.2,0-1.7.2H.4c-.2,0-.4.2-.4.4s.2.4.4.4h4.1c.4,0,1.7.2,1.7.2.6,0,1.1.2,1.6.6.4.3.8.7,1.1,1.1.3.5.5,1,.6,1.6,0,0,0,1.3.2,1.7v4.1c0,.2.2.4.4.4s.4-.2.4-.4v-4.1c0-.4.2-1.7.2-1.7,0-.6.2-1.1.6-1.6.3-.4.7-.8,1.1-1.1.5-.3,1-.5,1.6-.6,0,0,1.3,0,1.8-.2h3.9c.2,0,.4-.2.4-.4s-.2-.4-.4-.4h0Z"/>
-                    </svg>
-                  </div>
-                  <ul class="submenu">
-                    <li class="submenu__item">
-                      <a href="project-omo.html">O.MO</a>
-                    </li>
-                    <li class="submenu__item">
-                      <a href="project-worldcup.html">The New World — 2026 World Cup</a>
-                    </li>
-                    <li class="submenu__item">
-                      <a href="project-euro.html">UEFA EURO 2024 Special</a>
-                    </li>
-                  </ul>
+                  <a class="main-menu__link btn btn-anim" href="works.html">
+                    <span class="btn-caption">Works</span>
+                  </a>
                 </li>
                 <li class="main-menu__item">
                   <a class="main-menu__link btn btn-anim" href="index.html#mxd-footer" data-menu-anchor>
@@ -85,8 +69,8 @@
               <p class="menu-promo__caption menu-fade-in">👋 Nice to see you!<br>I'm Yun, a designer working across
                 visuals, motion, digital products and AI workflows.</p>
               <div class="menu-promo__video">
-                <video class="menu-video" id="inner-video" preload="metadata" autoplay="autoplay" loop="loop" muted="muted" playsinline poster="project/1_2026omo/omo-brand-film-poster.jpg">
-                  <source type="video/mp4" src="project/1_2026omo/omo-brand-film.mp4">
+                <video class="menu-video" id="inner-video" preload="auto" autoplay="autoplay" loop="loop" muted="muted" playsinline poster="project/1_2026omo/omo-feature-04-blending-poster.jpg">
+                  <source type="video/mp4" src="project/1_2026omo/omo-feature-04-blending.mp4">
                 </video>
               </div>
             </div>
@@ -207,7 +191,7 @@
               </a>
             </li>
             <li class="footer-nav__item anim-uni-in-up">
-              <a href="index.html#works" class="footer-nav__link btn-anim">
+              <a href="works.html" class="footer-nav__link btn-anim">
                 <span class="btn-caption">Works</span>
               </a>
               <p class="footer-nav__counter">
@@ -282,6 +266,12 @@
     </div>
   </div>
   <!-- Footer Block - Info Columns End -->
+
+  <!-- Footer Block - Copyright Start -->
+  <div class="mxd-footer__copyright">
+    <p>&copy; 2026 Y.BOB Design. All rights reserved.</p>
+  </div>
+  <!-- Footer Block - Copyright End -->
 
 </footer>
 `;
