@@ -1,0 +1,137 @@
+/* ------------------------------------------------*/
+/* Y.BOB Custom Styles
+/* Loaded after main.css. Keep overrides here so main.css stays untouched.
+/* ------------------------------------------------*/
+
+/* ------------------------------------------------*/
+/* Brand Color
+/* Replaces the template's purple (#9F8BE7) everywhere with the Y.BOB
+/* purple #B1A3E6. These tokens feed --accent (light mode),
+/* --additional (dark mode) and the purple card shadows.
+/* ------------------------------------------------*/
+:root {
+  --ybob-brand: #B1A3E6;
+  --ybob-brand-rgb: 177, 163, 230;
+  --accent--light: var(--ybob-brand);
+  --accent-rgb--light: var(--ybob-brand-rgb);
+  --additional--dark: var(--ybob-brand);
+  --additional-rgb--dark: var(--ybob-brand-rgb);
+  --pt-purple-rgb: var(--ybob-brand-rgb);
+}
+
+/* "Let's talk" block button (was lime in light mode) */
+.mxd-promo .btn-additional {
+  background-color: var(--ybob-brand);
+  border-color: var(--ybob-brand);
+  color: #161616;
+}
+
+/* ------------------------------------------------*/
+/* Theme - White Page
+/* Add class="theme-white" to <html> to lock a page to the light palette
+/* with a pure white background. ":root.theme-white" outranks both the
+/* prefers-color-scheme rules and the [color-scheme] attribute set by the
+/* theme switcher, so the page stays white in every mode.
+/* ------------------------------------------------*/
+:root.theme-white {
+  --base: #FFFFFF;
+  --base-rgb: 255, 255, 255;
+  --base-tint: #F7F7F7;
+  --base-shade: var(--base-shade--light);
+  --base-opp: var(--base-opp--light);
+  --base-opp-tint: var(--base-opp-tint--light);
+  --accent: var(--accent--light);
+  --accent-rgb: var(--accent-rgb--light);
+  --additional: var(--additional--light);
+  --additional-rgb: var(--additional-rgb--light);
+  --neutral-transparent: var(--neutral-transparent--light);
+  --st-bright: var(--st-bright--light);
+  --st-medium: var(--st-medium--light);
+  --st-muted: var(--st-muted--light);
+  --st-opp-bright: var(--st-opp-bright--light);
+  --fw-regular: var(--fw-regular--light);
+  --fw-medium: var(--fw-medium--light);
+  --fw-semibold: var(--fw-semibold--light);
+  --fw-bold: var(--fw-bold--light);
+  --fw-regular-opp: var(--fw-regular-opp--light);
+  --fw-medium-opp: var(--fw-medium-opp--light);
+  --t-bright: var(--t-bright--light);
+  --t-medium: var(--t-medium--light);
+  --t-muted: var(--t-muted--light);
+  --t-muted-extra: var(--t-muted-extra--light);
+  --t-opp-bright: var(--t-opp-bright--light);
+  --t-opp-medium: var(--t-opp-medium--light);
+  --t-opp-muted: var(--t-opp-muted--light);
+  color-scheme: light;
+}
+
+.theme-white body {
+  background-color: #FFFFFF;
+}
+
+/* the light/dark switcher has no effect on a locked page, so hide it */
+.theme-white #color-switcher {
+  display: none;
+}
+
+/* ------------------------------------------------*/
+/* Row - Equal Height Images
+/* Add .row-equal-height to a .row, and set --ar (image width / height) on
+/* each column, e.g. style="--ar: 0.701". From 1200px up, column widths are
+/* shared out in proportion to --ar, so every image in the row ends up the
+/* same height. Below 1200px the columns stack as usual.
+/* ------------------------------------------------*/
+@media only screen and (min-width: 1200px) {
+  .row-equal-height > [class*="col-"] {
+    flex: var(--ar, 1) 1 0;
+    width: auto;
+    max-width: none;
+  }
+}
+
+/* ------------------------------------------------*/
+/* Ink Screen Background
+/* Interactive ink canvas (js/ink-screen.js). Put .ink-screen-bg on a
+/* background layer; it fills its container and lets clicks pass through.
+/* ------------------------------------------------*/
+.ink-screen-bg {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: none;
+  pointer-events: none;
+}
+.ink-screen-bg canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ------------------------------------------------*/
+/* CTA - 3D Ticker
+/* The ticker iframe fills the right side of the "Let's talk" block, top to
+/* bottom (desktop only, like the template's promo images). It ignores the
+/* pointer so the page keeps scrolling and the ink keeps reacting over it.
+/* ------------------------------------------------*/
+.mxd-promo__images.promo-ticker {
+  pointer-events: none;
+}
+.mxd-promo__images.promo-ticker iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+/* ------------------------------------------------*/
+/* Footer - Contact Cards
+/* Email, Behance and Instagram cards share the column height evenly.
+/* ------------------------------------------------*/
+.footer-blocks__column--contacts .footer-blocks__card {
+  flex: 1;
+}

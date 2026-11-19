@@ -1,0 +1,7 @@
+.DS_Store
+
+# Raw project source files (originals, too large for GitHub; the site uses the compressed versions)
+project/*/_source/
+
+# Temporary copies left by macOS (e.g. video.mp4.sb-xxxx)
+*.sb-*

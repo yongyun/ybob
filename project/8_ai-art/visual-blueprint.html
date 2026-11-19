@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visual Blueprint Studio</title>
+  <meta name="brik:tool-uuid" content="599e8fe7-50d8-4b58-a6b7-bae0c967ed69">
+  <meta name="brik:export-id" content="0b783031-4c93-44d4-a90d-1c508e098f29">
+  <script>(function(){if(navigator.doNotTrack==='1'||navigator.doNotTrack==='yes')return;try{var c=(function(){var n=function(u){try{var x=new URL(u);return x.protocol+'//'+x.hostname.replace(/^www\./,'')+(x.port?':'+x.port:'')}catch(e){return''}};if(self===window.top)return{u:location.href,h:n(location.href),f:'',s:'direct'};var a=[];try{a=Array.prototype.slice.call(location.ancestorOrigins||[])}catch(e){}var r=document.referrer||'';var t=a.length?n(a[a.length-1]):n(r);if(!a.length&&t){try{if(/(^|\.)(filesusr|wixstatic|parastorage|googleusercontent)\.com$/.test(new URL(t).hostname))return{u:'',h:'',f:r,s:'unknown'}}catch(e){}}var e2='';try{var q=new URL(r);if(n(r)===t&&(q.pathname!=='/'||q.search))e2=r}catch(e){}return{u:e2,h:t,f:n(location.href)!==t?location.href:'',s:e2?'direct':(t?(a.length?'ancestor':'referrer'):'unknown')}})();var b='https://frog.wix.com/brik?src=207&evid=57&export_id='+encodeURIComponent('0b783031-4c93-44d4-a90d-1c508e098f29')+'&tool_id='+encodeURIComponent('69e9c55ceea90827710d48e1')+(c.u?'&page_url='+encodeURIComponent(c.u):'')+(c.h?'&page_host='+encodeURIComponent(c.h):'')+'&source=beacon&_='+Date.now();fetch(b,{credentials:'omit',keepalive:!0}).catch(function(){});var p=JSON.stringify({api_key:'phc_ApQuUzthC9YPBTcn2V6vGB2hGb4TSNHHz3xzgtPZfhwL',event:'export_sighted',distinct_id:'0b783031-4c93-44d4-a90d-1c508e098f29',properties:{export_id:'0b783031-4c93-44d4-a90d-1c508e098f29',tool_id:'69e9c55ceea90827710d48e1',tool_uuid:'599e8fe7-50d8-4b58-a6b7-bae0c967ed69',page_url:c.u||null,page_host:c.h||null,frame_url:c.f||null,url_resolution:c.s,source:'beacon'}});fetch('https://eu.i.posthog.com/i/v0/e/',{method:'POST',credentials:'omit',keepalive:!0,body:p}).catch(function(){});}catch(e){}})();</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+  
+  <style>
+
+
+
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .tool-canvas-area {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    canvas { display: block; background: transparent; }
+
+  </style>
+</head>
+<body>
+  <div class="tool-canvas-area">
+    
+  </div>
+
+  <script>
+
+    // Mobile perf: cap devicePixelRatio so canvases allocate fewer pixels.
+    (function() {
+      var _isMobile = window.innerWidth <= 768;
+      if (_isMobile) {
+        var _nativeDPR = window.devicePixelRatio || 1;
+        var _cappedDPR = Math.min(1.5, _nativeDPR);
+        Object.defineProperty(window, 'devicePixelRatio', { get: function() { return _cappedDPR; } });
+      }
+    })();
+
+    window.CanvasRuntimeAPI = (function() {
+      var _exportMode = 'auto';
+      var _exportWidth = 0;
+      var _exportHeight = 0;
+      var _bgState = { mode: 'none', color: '#ffffff', imageEl: null, imageDataURL: null, fit: 'cover' };
+
+
+
+      var _canvas = document.getElementById('canvas');
+      var _area = _canvas ? _canvas.parentElement : document.querySelector('.tool-canvas-area');
+      var _resizeRAF = null;
+
+      function _detectCanvas() {
+        var r = window.renderer || window.threeRenderer;
+        if (r && r.domElement) {
+          _canvas = r.domElement;
+          _area = _canvas.parentElement;
+          return;
+        }
+        var area = document.querySelector('.tool-canvas-area');
+        if (area) {
+          var canvases = area.querySelectorAll('canvas');
+          var visible = [];
+          for (var j = 0; j < canvases.length; j++) {
+            if (canvases[j].style.display !== 'none') visible.push(canvases[j]);
+          }
+          if (visible.length >= 1) {
+            var largest = visible[0];
+            for (var i = 1; i < visible.length; i++) {
+              if (visible[i].width * visible[i].height > largest.width * largest.height) {
+                largest = visible[i];
+              }
+            }
+            _canvas = largest;
+            _area = _canvas.parentElement;
+          }
+        }
+      }
+
+
+
+
+      var _bgPainted = null;
+      function _applyBgCSS() {
+        _detectCanvas();
+        // Pure-DOM tools (and ones that opt out of canvas-managed background, e.g. Three.js
+        // scenes) have no canvas for _detectCanvas to find — paint the tool's host wrapper
+        // instead so the Background control isn't a silent no-op.
+        var target = _canvas || _area;
+        if (!target) return;
+        // Only ever undo our own paint: the wrapper may carry a background the tool set itself,
+        // so None (or a switch to the canvas) clears what the runtime wrote and nothing else.
+        if (_bgPainted && (_bgPainted !== target || _bgState.mode === 'none')) {
+          _bgPainted.style.background = '';
+          _bgPainted.style.backgroundImage = '';
+          _bgPainted = null;
+        }
+        if (_bgState.mode === 'none') {
+          // The canvas itself keeps its long-standing reset; the wrapper fallback is left alone.
+          if (target === _canvas) target.style.background = '';
+          return;
+        }
+        _bgPainted = target;
+        if (_bgState.mode === 'solid') {
+          target.style.background = _bgState.color;
+        } else if (_bgState.mode === 'image') {
+          if (_bgState.imageDataURL) {
+            var fitCss = _bgState.fit === 'fill' ? '100% 100%' : _bgState.fit;
+            target.style.backgroundColor = _bgState.color;
+            target.style.backgroundImage = 'url("' + _bgState.imageDataURL + '")';
+            target.style.backgroundSize = fitCss;
+            target.style.backgroundPosition = 'center';
+            target.style.backgroundRepeat = 'no-repeat';
+          } else {
+            target.style.backgroundImage = '';
+            target.style.backgroundColor = _bgState.color;
+          }
+        }
+      }
+
+      function setBackground(state) {
+        state = state || {};
+        _bgState.mode = state.mode || 'none';
+        _bgState.color = state.color || '#ffffff';
+        _bgState.fit = state.fit || 'cover';
+        if (state.image && state.image !== _bgState.imageDataURL) {
+          _bgState.imageDataURL = state.image;
+          _bgState.imageEl = null;
+          _applyBgCSS();
+          var img = new Image();
+          img.onload = function() {
+            if (_bgState.imageDataURL !== state.image) return;
+            _bgState.imageEl = img;
+          };
+          img.src = state.image;
+        } else if (!state.image) {
+          _bgState.imageEl = null;
+          _bgState.imageDataURL = null;
+        }
+        _applyBgCSS();
+      }
+
+      function getBackground() {
+        return { mode: _bgState.mode, color: _bgState.color, fit: _bgState.fit };
+      }
+
+      function setCanvas(el) {
+        _canvas = el;
+        _area = el ? el.parentElement : document.querySelector('.tool-canvas-area');
+        if (_bgState.mode !== 'none') _applyBgCSS();
+      }
+
+      function setExportDimensions(w, h) {
+        _detectCanvas();
+        _exportMode = 'fixed';
+        _exportWidth = Math.max(1, Math.round(w || 1));
+        _exportHeight = Math.max(1, Math.round(h || 1));
+        if (_canvas) {
+          _canvas.width = _exportWidth;
+          _canvas.height = _exportHeight;
+        }
+        if (window.p5 && typeof window.resizeCanvas === 'function') window.resizeCanvas(_exportWidth, _exportHeight);
+        if (window.renderer && window.renderer.setSize) window.renderer.setSize(_exportWidth, _exportHeight, false);
+        if (window.hydra && window.hydra.setResolution) window.hydra.setResolution(_exportWidth, _exportHeight);
+        window.dispatchEvent(new Event('resize'));
+      }
+
+      function fitToArea() {}
+
+      function getExportDimensions() {
+        if (_exportMode === 'fixed') return { width: _exportWidth, height: _exportHeight, mode: 'fixed' };
+        _detectCanvas();
+        var __cw = _canvas ? _canvas.width : 0;
+        var __ch = _canvas ? _canvas.height : 0;
+        // A canvas still at the HTML default (300x150), or at zero, has never been
+        // sized, so it is not evidence of the export size. Answering from it is
+        // CIRCULAR: a tool that appends its own canvas and then asks is handed its
+        // own default straight back and sizes itself to that. That is how a
+        // 4096x1554 render came out as 300x150 of content on a blank frame -
+        // _detectCanvas skips display:none, so the correctly-sized canvas the tool
+        // had just hidden was passed over in favour of the tool's unsized one.
+        //
+        // The question is "how big is the export", so measure the surface the frame
+        // is captured from, not whichever canvas happens to be findable.
+        if (__cw && __ch && !(__cw === 300 && __ch === 150)) {
+          return { width: __cw, height: __ch, mode: 'auto' };
+        }
+        var __area = _area || document.querySelector('.tool-canvas-area');
+        var __aw = __area ? __area.clientWidth : 0;
+        var __ah = __area ? __area.clientHeight : 0;
+        if (!__aw || !__ah) { __aw = window.innerWidth; __ah = window.innerHeight; }
+        return { width: __aw, height: __ah, mode: 'auto' };
+      }
+
+      function isFixedExportMode() { return _exportMode === 'fixed'; }
+
+      function _onAreaResize() {
+        var r = window.renderer || window.threeRenderer;
+        if (!r || !r.setSize) return;
+        if (_resizeRAF) cancelAnimationFrame(_resizeRAF);
+        _resizeRAF = requestAnimationFrame(function() {
+          _detectCanvas();
+          if (!_area) return;
+          var w = _area.clientWidth;
+          var h = _area.clientHeight;
+          if (w <= 0 || h <= 0) return;
+          r.setSize(w, h);
+          window.dispatchEvent(new Event('resize'));
+        });
+      }
+      if (typeof ResizeObserver !== 'undefined' && _area) {
+        new ResizeObserver(_onAreaResize).observe(_area);
+      }
+      window.addEventListener('resize', _onAreaResize);
+
+      setTimeout(function() {
+        _detectCanvas();
+        if (_bgState.mode !== 'none') _applyBgCSS();
+      }, 500);
+
+      function getMousePos(event) {
+        _detectCanvas();
+        if (!_canvas) return { x: 0, y: 0 };
+        var rect = _canvas.getBoundingClientRect();
+        var scaleX = _canvas.width / rect.width;
+        var scaleY = _canvas.height / rect.height;
+        var touch = event.touches && event.touches[0]
+          ? event.touches[0]
+          : event.changedTouches && event.changedTouches[0]
+          ? event.changedTouches[0]
+          : null;
+        var clientX = touch ? touch.clientX : event.clientX;
+        var clientY = touch ? touch.clientY : event.clientY;
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY
+        };
+      }
+
+      function drawImage(ctx, img, x, y, w, h, fit) {
+        if (!img || !img.width || !img.height) return;
+        fit = fit || 'cover';
+        var ar = img.width / img.height;
+        var car = w / h;
+        var sx = 0, sy = 0, sw = img.width, sh = img.height;
+        var dx = x, dy = y, dw = w, dh = h;
+
+        if (fit === 'cover') {
+          if (ar > car) { sw = img.height * car; sx = (img.width - sw) / 2; }
+          else { sh = img.width / car; sy = (img.height - sh) / 2; }
+        } else if (fit === 'contain') {
+          if (ar > car) { dh = w / ar; dy = y + (h - dh) / 2; }
+          else { dw = h * ar; dx = x + (w - dw) / 2; }
+        }
+
+        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+      }
+
+      return {
+        setCanvas: setCanvas,
+        setBackground: setBackground,
+        getBackground: getBackground,
+        setExportDimensions: setExportDimensions,
+        fitToArea: fitToArea,
+        getExportDimensions: getExportDimensions,
+        isFixedExportMode: isFixedExportMode,
+
+
+        getMousePos: getMousePos,
+        drawImage: drawImage
+      };
+    })();
+
+    window.BrikCanvas = window.CanvasRuntimeAPI;
+    window.BrikControls = window.ControlsAPI;
+
+    (function() {
+      var srcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      if (srcDesc && srcDesc.set) {
+        Object.defineProperty(HTMLImageElement.prototype, 'src', {
+          get: srcDesc.get,
+          set: function(val) {
+            if (val && typeof val === 'string' && !val.startsWith('data:') && !this.crossOrigin) {
+              this.crossOrigin = 'anonymous';
+            }
+            srcDesc.set.call(this, val);
+          },
+          configurable: true,
+          enumerable: true
+        });
+      }
+    })();
+
+    window.loadImage = function(src, callback) {
+      var img = new Image();
+      if (src && typeof src === 'string' && !src.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = function() { if (callback) callback(img); };
+      img.onerror = function() { console.error('Failed to load image:', src); };
+      img.src = src;
+      return img;
+    };
+  
+  </script>
+  <script>
+    // p5.js mode — canvas created by p5's setup()
+    var controls = (function() {
+      // Escaped, not merely stringified: control values are author-supplied, and a text value
+      // holding a script-closing tag would end this block and render the rest as markup.
+      var _v = {"rows":53,"cols":122,"split":27,"zoom":56,"noiseX":0.05,"noiseY":0.05,"multX":2.24,"multY":0.47,"r_freq":0.14,"g_freq":0.35,"b_freq":0.5,"r_max":255,"g_max":155,"b_max":255,"animate":true,"quantize":false};
+      var _defaults = JSON.parse(JSON.stringify(_v));
+      var _listeners = {};
+      var _anyListeners = [];
+      var _actionListeners = {};
+      function _notify(key, value) {
+        if (_listeners[key]) _listeners[key].forEach(function(fn) { fn(value); });
+        _anyListeners.forEach(function(fn) { fn(key, value); });
+      }
+      function _hexToRgb(hex) {
+        var h = String(hex || '').replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        if (h.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(h)) return null;
+        return {
+          r: parseInt(h.slice(0, 2), 16),
+          g: parseInt(h.slice(2, 4), 16),
+          b: parseInt(h.slice(4, 6), 16)
+        };
+      }
+      function _clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
+      function _hexToRgbaCss(hex, opacity0to100) {
+        var rgb = _hexToRgb(hex);
+        if (!rgb) return 'rgba(0,0,0,1)';
+        var op = opacity0to100 != null && !isNaN(Number(opacity0to100)) ? Number(opacity0to100) : 100;
+        var a = _clamp(op, 0, 100) / 100;
+        return 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + a + ')';
+      }
+      var api = {
+        get: function(k) { return _v[k]; },
+        getAll: function() { return Object.assign({}, _v); },
+        getDefaults: function() { return JSON.parse(JSON.stringify(_defaults)); },
+        getColorWithAlpha: function(baseKey) { return _hexToRgbaCss(_v[baseKey], _v[baseKey + '_opacity']); },
+        set: function(k, v) { _v[k] = v; _notify(k, v); },
+        setValues: function(values) {
+          if (!values || typeof values !== 'object') return;
+          Object.keys(values).forEach(function(k) {
+            if (!(k in _v)) return;
+            try { _v[k] = JSON.parse(JSON.stringify(values[k])); }
+            catch (e) { _v[k] = values[k]; }
+            _notify(k, _v[k]);
+          });
+        },
+        setDefaults: function(values) {
+          if (!values || typeof values !== 'object') return;
+          Object.keys(values).forEach(function(k) {
+            try { _defaults[k] = JSON.parse(JSON.stringify(values[k])); }
+            catch (e) { _defaults[k] = values[k]; }
+          });
+        },
+        resetAll: function() {
+          Object.keys(_defaults).forEach(function(k) {
+            try { _v[k] = JSON.parse(JSON.stringify(_defaults[k])); }
+            catch (e) { _v[k] = _defaults[k]; }
+            _notify(k, _v[k]);
+          });
+        },
+        triggerAction: function(k) {
+          if (_actionListeners[k]) _actionListeners[k].forEach(function(fn) { fn(); });
+        },
+        onChange: function(k, cb) {
+          if (!_listeners[k]) _listeners[k] = [];
+          _listeners[k].push(cb);
+        },
+        onAny: function(cb) { _anyListeners.push(cb); },
+        onAction: function(k, cb) {
+          if (!_actionListeners[k]) _actionListeners[k] = [];
+          _actionListeners[k].push(cb);
+        }
+      };
+      window.ControlsAPI = api;
+      window.BrikControls = api;
+
+      return api;
+    })();
+
+    (function() {
+      var area = document.querySelector('.tool-canvas-area');
+      var obs = new MutationObserver(function(muts) {
+        for (var i = 0; i < muts.length; i++) {
+          for (var j = 0; j < muts[i].addedNodes.length; j++) {
+            var node = muts[i].addedNodes[j];
+            if (node.tagName === 'CANVAS') {
+              if (typeof CanvasRuntimeAPI !== 'undefined') CanvasRuntimeAPI.setCanvas(node);
+              obs.disconnect();
+              return;
+            }
+          }
+        }
+      });
+      obs.observe(area, { childList: true });
+    })();
+
+    // Creative Code
+    {
+      // @clay-no-bg-control
+const defaultCanvas = document.getElementById('canvas');
+if (defaultCanvas) defaultCanvas.style.display = 'none';
+
+const area = document.querySelector('.tool-canvas-area');
+
+function setup() {
+  let c = createCanvas(area.clientWidth, area.clientHeight);
+  c.parent(area);
+  c.id('canvas');
+  noStroke();
+}
+
+function draw() {
+  // Transparent background so the card shows through
+  clear();
+  
+  const rows = controls.get('rows');
+  const cols = controls.get('cols');
+  const split = controls.get('split');
+  const zoom = controls.get('zoom');
+  const nx = controls.get('noiseX');
+  const ny = controls.get('noiseY');
+  const multX = controls.get('multX');
+  const multY = controls.get('multY');
+  
+  const r_freq = controls.get('r_freq');
+  const g_freq = controls.get('g_freq');
+  const b_freq = controls.get('b_freq');
+  const r_max = controls.get('r_max');
+  const g_max = controls.get('g_max');
+  const b_max = controls.get('b_max');
+  
+  const animate = controls.get('animate');
+  const quantize = controls.get('quantize');
+
+  let t = animate ? millis() * 0.002 : 0;
+
+  translate(width / 2, height / 2);
+
+  // Scale the reference framing (about 780 x 730 sketch units) to fit the canvas
+  const fitScale = min(width / 780, height / 730);
+  scale(fitScale);
+
+  // Center the drawing vertically
+  let startY = -(rows * split) / 2;
+
+  // To get the correct 3D overlap (center ellipses on top of edge ellipses),
+  // we sort the column indices by their Z-depth (cos(angle)).
+  let colIndices = [];
+  for (let j = 0; j < cols; j++) {
+    colIndices.push(j);
+  }
+  colIndices.sort((a, b) => {
+    let angleA = map(a, 0, cols - 1, -PI/2, PI/2);
+    let angleB = map(b, 0, cols - 1, -PI/2, PI/2);
+    return cos(angleA) - cos(angleB);
+  });
+
+  for (let i = 0; i < rows; i++) {
+    let y = startY + i * split;
+    
+    // The wave effect on the radius
+    let wave = sin(i * multY + t);
+    let rowRadius = zoom * (2 + wave);
+
+    for (let j of colIndices) {
+      // Map j to an angle from -PI/2 to PI/2 (front half of cylinder)
+      let angle = map(j, 0, cols - 1, -PI/2, PI/2);
+      
+      let px = sin(angle) * rowRadius * multX;
+      let py = y;
+      
+      // Width of ellipse simulates 3D perspective
+      let ew = cos(angle) * (rowRadius * multX * 0.2); 
+      let eh = split * 0.9;
+
+      // Color generation
+      let nVal = noise(j * nx, i * ny, t * 0.1);
+      
+      if (quantize) {
+        // Create distinct color bands
+        let steps = 8;
+        nVal = floor(nVal * steps) / steps;
+      }
+      
+      // The parameters r, g, b act as phase multipliers for the color channels
+      let r = (sin(nVal * 20 + i * r_freq) * 0.5 + 0.5) * r_max;
+      let g = (sin(nVal * 20 + i * g_freq) * 0.5 + 0.5) * g_max;
+      let b = (sin(nVal * 20 + i * b_freq) * 0.5 + 0.5) * b_max;
+
+      fill(r, g, b);
+      ellipse(px, py, ew, eh);
+    }
+  }
+}
+
+function windowResized() {
+  resizeCanvas(area.clientWidth, area.clientHeight);
+}
+    }
+
+    
+  </script>
+</body>
+</html>

@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3d ticker</title>
+  <meta name="brik:tool-uuid" content="0e3b5d23-5eba-4232-97ed-3eeebb5b940f">
+  <meta name="brik:export-id" content="320001b8-eee4-4338-bab5-7f62858c13c3">
+
+
+  <style>
+
+
+
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .tool-canvas-area {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    canvas { display: block; background: transparent; }
+
+  </style>
+</head>
+<body>
+  <div class="tool-canvas-area">
+    <canvas id="canvas" style="display:none"></canvas>
+  </div>
+
+  <script>
+
+    // Mobile perf: cap devicePixelRatio so canvases allocate fewer pixels.
+    (function() {
+      var _isMobile = window.innerWidth <= 768;
+      if (_isMobile) {
+        var _nativeDPR = window.devicePixelRatio || 1;
+        var _cappedDPR = Math.min(1.5, _nativeDPR);
+        Object.defineProperty(window, 'devicePixelRatio', { get: function() { return _cappedDPR; } });
+      }
+    })();
+
+    window.CanvasRuntimeAPI = (function() {
+      var _exportMode = 'auto';
+      var _exportWidth = 0;
+      var _exportHeight = 0;
+      var _bgState = { mode: 'none', color: '#ffffff', imageEl: null, imageDataURL: null, fit: 'cover' };
+
+
+
+      var _canvas = document.getElementById('canvas');
+      var _area = _canvas ? _canvas.parentElement : document.querySelector('.tool-canvas-area');
+      var _resizeRAF = null;
+
+      function _detectCanvas() {
+        var r = window.renderer || window.threeRenderer;
+        if (r && r.domElement) {
+          _canvas = r.domElement;
+          _area = _canvas.parentElement;
+          return;
+        }
+        var area = document.querySelector('.tool-canvas-area');
+        if (area) {
+          var canvases = area.querySelectorAll('canvas');
+          var visible = [];
+          for (var j = 0; j < canvases.length; j++) {
+            if (canvases[j].style.display !== 'none') visible.push(canvases[j]);
+          }
+          if (visible.length >= 1) {
+            var largest = visible[0];
+            for (var i = 1; i < visible.length; i++) {
+              if (visible[i].width * visible[i].height > largest.width * largest.height) {
+                largest = visible[i];
+              }
+            }
+            _canvas = largest;
+            _area = _canvas.parentElement;
+          }
+        }
+      }
+
+
+
+
+      var _bgPainted = null;
+      function _applyBgCSS() {
+        _detectCanvas();
+        // Pure-DOM tools (and ones that opt out of canvas-managed background, e.g. Three.js
+        // scenes) have no canvas for _detectCanvas to find — paint the tool's host wrapper
+        // instead so the Background control isn't a silent no-op.
+        var target = _canvas || _area;
+        if (!target) return;
+        // Only ever undo our own paint: the wrapper may carry a background the tool set itself,
+        // so None (or a switch to the canvas) clears what the runtime wrote and nothing else.
+        if (_bgPainted && (_bgPainted !== target || _bgState.mode === 'none')) {
+          _bgPainted.style.background = '';
+          _bgPainted.style.backgroundImage = '';
+          _bgPainted = null;
+        }
+        if (_bgState.mode === 'none') {
+          // The canvas itself keeps its long-standing reset; the wrapper fallback is left alone.
+          if (target === _canvas) target.style.background = '';
+          return;
+        }
+        _bgPainted = target;
+        if (_bgState.mode === 'solid') {
+          target.style.background = _bgState.color;
+        } else if (_bgState.mode === 'image') {
+          if (_bgState.imageDataURL) {
+            var fitCss = _bgState.fit === 'fill' ? '100% 100%' : _bgState.fit;
+            target.style.backgroundColor = _bgState.color;
+            target.style.backgroundImage = 'url("' + _bgState.imageDataURL + '")';
+            target.style.backgroundSize = fitCss;
+            target.style.backgroundPosition = 'center';
+            target.style.backgroundRepeat = 'no-repeat';
+          } else {
+            target.style.backgroundImage = '';
+            target.style.backgroundColor = _bgState.color;
+          }
+        }
+      }
+
+      function setBackground(state) {
+        state = state || {};
+        _bgState.mode = state.mode || 'none';
+        _bgState.color = state.color || '#ffffff';
+        _bgState.fit = state.fit || 'cover';
+        if (state.image && state.image !== _bgState.imageDataURL) {
+          _bgState.imageDataURL = state.image;
+          _bgState.imageEl = null;
+          _applyBgCSS();
+          var img = new Image();
+          img.onload = function() {
+            if (_bgState.imageDataURL !== state.image) return;
+            _bgState.imageEl = img;
+          };
+          img.src = state.image;
+        } else if (!state.image) {
+          _bgState.imageEl = null;
+          _bgState.imageDataURL = null;
+        }
+        _applyBgCSS();
+      }
+
+      function getBackground() {
+        return { mode: _bgState.mode, color: _bgState.color, fit: _bgState.fit };
+      }
+
+      function setCanvas(el) {
+        _canvas = el;
+        _area = el ? el.parentElement : document.querySelector('.tool-canvas-area');
+        if (_bgState.mode !== 'none') _applyBgCSS();
+      }
+
+      function setExportDimensions(w, h) {
+        _detectCanvas();
+        _exportMode = 'fixed';
+        _exportWidth = Math.max(1, Math.round(w || 1));
+        _exportHeight = Math.max(1, Math.round(h || 1));
+        if (_canvas) {
+          _canvas.width = _exportWidth;
+          _canvas.height = _exportHeight;
+        }
+        if (window.p5 && typeof window.resizeCanvas === 'function') window.resizeCanvas(_exportWidth, _exportHeight);
+        if (window.renderer && window.renderer.setSize) window.renderer.setSize(_exportWidth, _exportHeight, false);
+        if (window.hydra && window.hydra.setResolution) window.hydra.setResolution(_exportWidth, _exportHeight);
+        window.dispatchEvent(new Event('resize'));
+      }
+
+      function fitToArea() {}
+
+      function getExportDimensions() {
+        if (_exportMode === 'fixed') return { width: _exportWidth, height: _exportHeight, mode: 'fixed' };
+        _detectCanvas();
+        var __cw = _canvas ? _canvas.width : 0;
+        var __ch = _canvas ? _canvas.height : 0;
+        // A canvas still at the HTML default (300x150), or at zero, has never been
+        // sized, so it is not evidence of the export size. Answering from it is
+        // CIRCULAR: a tool that appends its own canvas and then asks is handed its
+        // own default straight back and sizes itself to that. That is how a
+        // 4096x1554 render came out as 300x150 of content on a blank frame -
+        // _detectCanvas skips display:none, so the correctly-sized canvas the tool
+        // had just hidden was passed over in favour of the tool's unsized one.
+        //
+        // The question is "how big is the export", so measure the surface the frame
+        // is captured from, not whichever canvas happens to be findable.
+        if (__cw && __ch && !(__cw === 300 && __ch === 150)) {
+          return { width: __cw, height: __ch, mode: 'auto' };
+        }
+        var __area = _area || document.querySelector('.tool-canvas-area');
+        var __aw = __area ? __area.clientWidth : 0;
+        var __ah = __area ? __area.clientHeight : 0;
+        if (!__aw || !__ah) { __aw = window.innerWidth; __ah = window.innerHeight; }
+        return { width: __aw, height: __ah, mode: 'auto' };
+      }
+
+      function isFixedExportMode() { return _exportMode === 'fixed'; }
+
+      function _onAreaResize() {
+        var r = window.renderer || window.threeRenderer;
+        if (!r || !r.setSize) return;
+        if (_resizeRAF) cancelAnimationFrame(_resizeRAF);
+        _resizeRAF = requestAnimationFrame(function() {
+          _detectCanvas();
+          if (!_area) return;
+          var w = _area.clientWidth;
+          var h = _area.clientHeight;
+          if (w <= 0 || h <= 0) return;
+          r.setSize(w, h);
+          window.dispatchEvent(new Event('resize'));
+        });
+      }
+      if (typeof ResizeObserver !== 'undefined' && _area) {
+        new ResizeObserver(_onAreaResize).observe(_area);
+      }
+      window.addEventListener('resize', _onAreaResize);
+
+      setTimeout(function() {
+        _detectCanvas();
+        if (_bgState.mode !== 'none') _applyBgCSS();
+      }, 500);
+
+      function getMousePos(event) {
+        _detectCanvas();
+        if (!_canvas) return { x: 0, y: 0 };
+        var rect = _canvas.getBoundingClientRect();
+        var scaleX = _canvas.width / rect.width;
+        var scaleY = _canvas.height / rect.height;
+        var touch = event.touches && event.touches[0]
+          ? event.touches[0]
+          : event.changedTouches && event.changedTouches[0]
+          ? event.changedTouches[0]
+          : null;
+        var clientX = touch ? touch.clientX : event.clientX;
+        var clientY = touch ? touch.clientY : event.clientY;
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY
+        };
+      }
+
+      function drawImage(ctx, img, x, y, w, h, fit) {
+        if (!img || !img.width || !img.height) return;
+        fit = fit || 'cover';
+        var ar = img.width / img.height;
+        var car = w / h;
+        var sx = 0, sy = 0, sw = img.width, sh = img.height;
+        var dx = x, dy = y, dw = w, dh = h;
+
+        if (fit === 'cover') {
+          if (ar > car) { sw = img.height * car; sx = (img.width - sw) / 2; }
+          else { sh = img.width / car; sy = (img.height - sh) / 2; }
+        } else if (fit === 'contain') {
+          if (ar > car) { dh = w / ar; dy = y + (h - dh) / 2; }
+          else { dw = h * ar; dx = x + (w - dw) / 2; }
+        }
+
+        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+      }
+
+      return {
+        setCanvas: setCanvas,
+        setBackground: setBackground,
+        getBackground: getBackground,
+        setExportDimensions: setExportDimensions,
+        fitToArea: fitToArea,
+        getExportDimensions: getExportDimensions,
+        isFixedExportMode: isFixedExportMode,
+
+
+        getMousePos: getMousePos,
+        drawImage: drawImage
+      };
+    })();
+
+    window.BrikCanvas = window.CanvasRuntimeAPI;
+    window.BrikControls = window.ControlsAPI;
+
+    (function() {
+      var srcDesc = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src');
+      if (srcDesc && srcDesc.set) {
+        Object.defineProperty(HTMLImageElement.prototype, 'src', {
+          get: srcDesc.get,
+          set: function(val) {
+            if (val && typeof val === 'string' && !val.startsWith('data:') && !this.crossOrigin) {
+              this.crossOrigin = 'anonymous';
+            }
+            srcDesc.set.call(this, val);
+          },
+          configurable: true,
+          enumerable: true
+        });
+      }
+    })();
+
+    window.loadImage = function(src, callback) {
+      var img = new Image();
+      if (src && typeof src === 'string' && !src.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      img.onload = function() { if (callback) callback(img); };
+      img.onerror = function() { console.error('Failed to load image:', src); };
+      img.src = src;
+      return img;
+    };
+
+  </script>
+  <script type="module">
+    // Standalone Three.js mode — renderer creates and owns the visible canvas
+    var controls = (function() {
+      // Escaped, not merely stringified: control values are author-supplied, and a text value
+      // holding a script-closing tag would end this block and render the rest as markup.
+      var _v = {"playing":true,"profileShape":"rectangle","tickerText":"Y.BOB DESIGN","pathPreset":"spiral","wireframe":false,"materialType":"emissive","roughness":30,"metalness":16,"emissiveIntensity":1.2,"pathParam1":31,"pathParam2":69,"pathParam3":67,"pathParam4":97,"widthStart":0.9,"widthMid":1,"widthEnd":1,"pathRotX":0,"pathRotY":0,"pathRotZ":180,"sideColor1":"#000000","sideColor2":"#FF006F","sideColor3":"#FFFFFF","sideColor4":"#25E000","textColor1":"#0008FF","textColor2":"#FBFF00","textColor3":"#0A0A0A","textColor4":"#FF0088","fontSize":96,"textureStretch":1,"scrollSpeed":0.1,"twistAnimate":false,"twistAnimSpeed":0.5,"cameraOrbit":false,"cameraOrbitSpeed":0,"meshRotateSpeed":0,"profileScale":1.05,"twistCount":3.5,"pathSteps":340,"sideSubdivisions":4,"lightIntensity":2,"__sys_bg":{"mode":"none","color":"#000000","image":null,"fit":"fill"}};
+      // ?theme=mono : achromatic ticker with one brand-purple face (used in the site CTA)
+      if (/[?&]theme=mono\b/.test(location.search)) {
+        Object.assign(_v, {
+          sideColor1: "#0A0A0A", textColor1: "#FFFFFF",
+          sideColor2: "#B1A3E6", textColor2: "#161616",
+          sideColor3: "#FFFFFF", textColor3: "#0A0A0A",
+          sideColor4: "#5C5C5C", textColor4: "#F2F2F2"
+        });
+      }
+      var _defaults = JSON.parse(JSON.stringify(_v));
+      var _listeners = {};
+      var _anyListeners = [];
+      var _actionListeners = {};
+      function _notify(key, value) {
+        if (_listeners[key]) _listeners[key].forEach(function(fn) { fn(value); });
+        _anyListeners.forEach(function(fn) { fn(key, value); });
+      }
+      function _hexToRgb(hex) {
+        var h = String(hex || '').replace('#', '');
+        if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+        if (h.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(h)) return null;
+        return {
+          r: parseInt(h.slice(0, 2), 16),
+          g: parseInt(h.slice(2, 4), 16),
+          b: parseInt(h.slice(4, 6), 16)
+        };
+      }
+      function _clamp(n, min, max) { return Math.min(max, Math.max(min, n)); }
+      function _hexToRgbaCss(hex, opacity0to100) {
+        var rgb = _hexToRgb(hex);
+        if (!rgb) return 'rgba(0,0,0,1)';
+        var op = opacity0to100 != null && !isNaN(Number(opacity0to100)) ? Number(opacity0to100) : 100;
+        var a = _clamp(op, 0, 100) / 100;
+        return 'rgba(' + rgb.r + ',' + rgb.g + ',' + rgb.b + ',' + a + ')';
+      }
+      var api = {
+        get: function(k) { return _v[k]; },
+        getAll: function() { return Object.assign({}, _v); },
+        getDefaults: function() { return JSON.parse(JSON.stringify(_defaults)); },
+        getColorWithAlpha: function(baseKey) { return _hexToRgbaCss(_v[baseKey], _v[baseKey + '_opacity']); },
+        set: function(k, v) { _v[k] = v; _notify(k, v); },
+        setValues: function(values) {
+          if (!values || typeof values !== 'object') return;
+          Object.keys(values).forEach(function(k) {
+            if (!(k in _v)) return;
+            try { _v[k] = JSON.parse(JSON.stringify(values[k])); }
+            catch (e) { _v[k] = values[k]; }
+            _notify(k, _v[k]);
+          });
+        },
+        setDefaults: function(values) {
+          if (!values || typeof values !== 'object') return;
+          Object.keys(values).forEach(function(k) {
+            try { _defaults[k] = JSON.parse(JSON.stringify(values[k])); }
+            catch (e) { _defaults[k] = values[k]; }
+          });
+        },
+        resetAll: function() {
+          Object.keys(_defaults).forEach(function(k) {
+            try { _v[k] = JSON.parse(JSON.stringify(_defaults[k])); }
+            catch (e) { _v[k] = _defaults[k]; }
+            _notify(k, _v[k]);
+          });
+        },
+        triggerAction: function(k) {
+          if (_actionListeners[k]) _actionListeners[k].forEach(function(fn) { fn(); });
+        },
+        onChange: function(k, cb) {
+          if (!_listeners[k]) _listeners[k] = [];
+          _listeners[k].push(cb);
+        },
+        onAny: function(cb) { _anyListeners.push(cb); },
+        onAction: function(k, cb) {
+          if (!_actionListeners[k]) _actionListeners[k] = [];
+          _actionListeners[k].push(cb);
+        }
+      };
+      window.ControlsAPI = api;
+      window.BrikControls = api;
+
+      return api;
+    })();
+
+
+
+    // Creative Code
+    // ============================================================
+// 3D Twisted Ticker Sweep
+// Custom swept geometry: sweeps a 2D profile along a CatmullRom
+// spline with continuous twist, smooth normals, and correct UVs.
+// ============================================================
+
+import * as THREE from 'https://esm.sh/three@0.170.0';
+import { OrbitControls } from 'https://esm.sh/three@0.170.0/addons/controls/OrbitControls.js';
+
+const defaultCanvas = document.getElementById('canvas');
+if (defaultCanvas) defaultCanvas.style.display = 'none';
+const area = document.querySelector('.tool-canvas-area');
+
+// --- Scene, Camera, Renderer ---
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, area.clientWidth / area.clientHeight, 0.1, 200);
+camera.position.set(0, 3, 12);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  alpha: true,
+  preserveDrawingBuffer: true,
+});
+renderer.setSize(area.clientWidth, area.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+area.appendChild(renderer.domElement);
+
+window.renderer = renderer;
+window.scene = scene;
+window.camera = camera;
+
+// --- Orbit Controls ---
+const orbitControls = new OrbitControls(camera, renderer.domElement);
+orbitControls.enableDamping = true;
+orbitControls.dampingFactor = 0.08;
+orbitControls.target.set(0, 0, 0);
+// Embedded in the portfolio page: let the mouse wheel scroll the page instead of zooming
+orbitControls.enableZoom = false;
+
+// --- Lighting ---
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+scene.add(ambientLight);
+
+const dirLight1 = new THREE.DirectionalLight(0xffffff, 2.0);
+dirLight1.position.set(5, 8, 6);
+scene.add(dirLight1);
+
+const dirLight2 = new THREE.DirectionalLight(0x8899cc, 1.0);
+dirLight2.position.set(-4, -2, -5);
+scene.add(dirLight2);
+
+const pointLight = new THREE.PointLight(0xffeedd, 1.5, 30);
+pointLight.position.set(0, 4, 0);
+scene.add(pointLight);
+
+// --- Clock ---
+const clock = new THREE.Clock();
+let twistAnimOffset = 0; // accumulated twist animation offset
+
+// ============================================================
+// PATH PARAMETER DEFINITIONS
+// Each path shape maps the 4 generic sliders (0-100) to its
+// own meaningful parameters with proper ranges.
+// ============================================================
+const pathParamDefs = {
+  'gentle-wave': {
+    labels: ['Amplitude', 'Width', 'Cycles', 'Depth (Z)'],
+    ranges: [[0.1, 5], [4, 20], [0.5, 4], [0, 4]],
+    defaults: [2, 12, 1, 1], // actual values
+  },
+  's-curve': {
+    labels: ['Amplitude', 'Width', 'Depth (Z)', '—'],
+    ranges: [[0.5, 5], [4, 20], [0, 4], [0, 1]],
+    defaults: [2, 12, 2, 0],
+  },
+  'helix': {
+    labels: ['Height', 'Turns', 'Start Radius', 'End Radius'],
+    ranges: [[2, 20], [0.5, 6], [0.5, 6], [0.5, 6]],
+    defaults: [10, 1.5, 2, 2],
+  },
+  'spiral': {
+    labels: ['Turns', 'Start Radius', 'End Radius', 'Height'],
+    ranges: [[1, 8], [0.5, 6], [0.1, 6], [0, 10]],
+    defaults: [3, 4, 1, 4],
+  },
+  'circle': {
+    labels: ['Radius', '—', '—', '—'],
+    ranges: [[1, 10], [0, 1], [0, 1], [0, 1]],
+    defaults: [4, 0, 0, 0],
+  },
+  'loop': {
+    labels: ['Radius', 'Height', 'Width', '—'],
+    ranges: [[1, 8], [0, 6], [4, 16], [0, 1]],
+    defaults: [3, 2, 10, 0],
+  },
+};
+
+// Convert a 0-100 slider value to the actual parameter value
+function mapParam(sliderVal, range) {
+  return range[0] + (sliderVal / 100) * (range[1] - range[0]);
+}
+
+// Convert an actual default value to 0-100 slider position
+function unmapParam(actualVal, range) {
+  if (range[1] === range[0]) return 0;
+  return ((actualVal - range[0]) / (range[1] - range[0])) * 100;
+}
+
+// Get the 4 actual parameter values for the current path shape
+function getPathParams(preset) {
+  const defs = pathParamDefs[preset];
+  if (!defs) return [0, 0, 0, 0];
+  const vals = [];
+  for (let i = 0; i < 4; i++) {
+    const sliderVal = controls.get(`pathParam${i + 1}`);
+    vals.push(mapParam(sliderVal, defs.ranges[i]));
+  }
+  return vals;
+}
+
+// ============================================================
+// PARAMETER LEGEND OVERLAY
+// Shows what each Param 1-4 means for the current path shape.
+// Rendered as an HTML overlay on the canvas area.
+// ============================================================
+const legendDiv = document.createElement('div');
+legendDiv.style.cssText = `
+  position: absolute; top: 12px; left: 12px; z-index: 10;
+  background: rgba(0,0,0,0.7); color: #ccc; font: 12px/1.6 monospace;
+  padding: 8px 12px; border-radius: 6px; pointer-events: none;
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.08);
+`;
+area.style.position = 'relative';
+// Legend is an editor aid; hidden on the portfolio page
+// area.appendChild(legendDiv);
+
+function updateLegend(preset) {
+  const defs = pathParamDefs[preset];
+  if (!defs) { legendDiv.style.display = 'none'; return; }
+  legendDiv.style.display = '';
+  const lines = [];
+  for (let i = 0; i < 4; i++) {
+    if (defs.labels[i] !== '—') {
+      lines.push(`<span style="color:#7aa2f7">Param ${i+1}</span> → ${defs.labels[i]}`);
+    }
+  }
+  legendDiv.innerHTML = `<div style="color:#fff;font-weight:bold;margin-bottom:2px">${preset}</div>` + lines.join('<br>');
+}
+
+let lastPreset = null;
+
+// ============================================================
+// PROFILE SHAPE GENERATOR
+// ============================================================
+function getProfilePoints(type, scale) {
+  const pts = [];
+  const r = scale;
+
+  switch (type) {
+    case 'triangle': {
+      const h = r * Math.sqrt(3) / 2;
+      pts.push(new THREE.Vector2(0, r * 0.667));
+      pts.push(new THREE.Vector2(-h * 0.667, -r * 0.333));
+      pts.push(new THREE.Vector2(h * 0.667, -r * 0.333));
+      break;
+    }
+    case 'rectangle': {
+      const hw = r * 0.8;
+      const hh = r * 0.5;
+      pts.push(new THREE.Vector2(-hw, hh));
+      pts.push(new THREE.Vector2(-hw, -hh));
+      pts.push(new THREE.Vector2(hw, -hh));
+      pts.push(new THREE.Vector2(hw, hh));
+      break;
+    }
+    case 'star': {
+      const outerR = r;
+      const innerR = r * 0.4;
+      const spikes = 5;
+      for (let i = 0; i < spikes * 2; i++) {
+        const angle = (i * Math.PI) / spikes - Math.PI / 2;
+        const rad = i % 2 === 0 ? outerR : innerR;
+        pts.push(new THREE.Vector2(Math.cos(angle) * rad, Math.sin(angle) * rad));
+      }
+      break;
+    }
+    default: {
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        pts.push(new THREE.Vector2(Math.cos(angle) * r, Math.sin(angle) * r));
+      }
+    }
+  }
+  return pts;
+}
+
+// ============================================================
+// CUSTOM SWEPT GEOMETRY BUILDER
+// ============================================================
+function widthEnvelope(t, wStart, wMid, wEnd) {
+  const omt = 1 - t;
+  return omt * omt * wStart + 2 * omt * t * wMid + t * t * wEnd;
+}
+
+function buildSweptGeometry(curve, profilePts, steps, twistCount, textRepeatU, wStart, wMid, wEnd, sideSubdivs) {
+  const N = profilePts.length;
+  const subdiv = Math.max(1, sideSubdivs);
+  const frames = curve.computeFrenetFrames(steps, false);
+
+  const arcLengths = [0];
+  let prevPt = curve.getPointAt(0);
+  for (let s = 1; s <= steps; s++) {
+    const pt = curve.getPointAt(s / steps);
+    arcLengths.push(arcLengths[s - 1] + prevPt.distanceTo(pt));
+    prevPt = pt;
+  }
+  const totalArcLength = arcLengths[steps];
+
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+  let vertexOffset = 0;
+
+  for (let e = 0; e < N; e++) {
+    const eNext = (e + 1) % N;
+    const sideVertexOffset = vertexOffset;
+
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const u = (arcLengths[s] / totalArcLength) * textRepeatU;
+
+      const center = curve.getPointAt(t);
+      const N_vec = frames.normals[s];
+      const B_vec = frames.binormals[s];
+      const twistAngle = t * Math.PI * 2 * twistCount;
+      const cosA = Math.cos(twistAngle);
+      const sinA = Math.sin(twistAngle);
+      const rN_x = N_vec.x * cosA + B_vec.x * sinA;
+      const rN_y = N_vec.y * cosA + B_vec.y * sinA;
+      const rN_z = N_vec.z * cosA + B_vec.z * sinA;
+      const rB_x = -N_vec.x * sinA + B_vec.x * cosA;
+      const rB_y = -N_vec.y * sinA + B_vec.y * cosA;
+      const rB_z = -N_vec.z * sinA + B_vec.z * cosA;
+      const wScale = widthEnvelope(t, wStart, wMid, wEnd);
+
+      for (let d = 0; d <= subdiv; d++) {
+        const u_val = u;
+        const v_val = d / subdiv;
+
+        const frac = d / subdiv;
+        const px = (profilePts[e].x * (1 - frac) + profilePts[eNext].x * frac) * wScale;
+        const py = (profilePts[e].y * (1 - frac) + profilePts[eNext].y * frac) * wScale;
+
+        const x = center.x + px * rN_x + py * rB_x;
+        const y = center.y + px * rN_y + py * rB_y;
+        const z = center.z + px * rN_z + py * rB_z;
+
+        positions.push(x, y, z);
+        uvs.push(u_val, v_val);
+      }
+    }
+
+    for (let s = 0; s < steps; s++) {
+      for (let d = 0; d < subdiv; d++) {
+        const row1 = sideVertexOffset + s * (subdiv + 1);
+        const row2 = sideVertexOffset + (s + 1) * (subdiv + 1);
+
+        const a = row1 + d;
+        const b = row2 + d;
+        const c = row2 + d + 1;
+        const d_idx = row1 + d + 1;
+
+        indices.push(a, c, b);
+        indices.push(a, d_idx, c);
+      }
+    }
+
+    vertexOffset += (steps + 1) * (subdiv + 1);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+
+  geometry.computeVertexNormals();
+
+  const indicesPerEdge = steps * subdiv * 6;
+  for (let e = 0; e < N; e++) {
+    geometry.addGroup(e * indicesPerEdge, indicesPerEdge, e);
+  }
+
+  return geometry;
+}
+
+// ============================================================
+// PATH GENERATORS — use generic pathParam1-4 mapped to ranges
+// ============================================================
+function getPathPoints(preset) {
+  const segments = 24;
+  const params = getPathParams(preset);
+
+  switch (preset) {
+    case 'gentle-wave': {
+      const [amp, width, cycles, depth] = params;
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const x = (t - 0.5) * width;
+        const angle = t * Math.PI * 2 * cycles;
+        const y = Math.sin(angle) * amp;
+        const z = Math.sin(angle * 0.7 + 0.5) * depth;
+        pts.push(new THREE.Vector3(x, y, z));
+      }
+      return pts;
+    }
+
+    case 's-curve': {
+      const [amp, width, depth] = params;
+      const halfW = width / 2;
+      return [
+        new THREE.Vector3(-halfW, -amp, 0),
+        new THREE.Vector3(-halfW * 0.5, amp, depth),
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(halfW * 0.5, -amp, -depth),
+        new THREE.Vector3(halfW, amp, 0),
+      ];
+    }
+
+    case 'helix': {
+      const [height, turns, startR, endR] = params;
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const angle = t * Math.PI * 2 * turns;
+        const r = startR + (endR - startR) * t;
+        pts.push(new THREE.Vector3(
+          (t - 0.5) * height,
+          Math.sin(angle) * r,
+          Math.cos(angle) * r
+        ));
+      }
+      return pts;
+    }
+
+    case 'spiral': {
+      const [turns, startR, endR, height] = params;
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const angle = t * Math.PI * 2 * turns;
+        const r = startR + (endR - startR) * t;
+        pts.push(new THREE.Vector3(
+          Math.cos(angle) * r,
+          (t - 0.5) * height,
+          Math.sin(angle) * r
+        ));
+      }
+      return pts;
+    }
+
+    case 'circle': {
+      const [radius] = params;
+      const pts = [];
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const angle = t * Math.PI * 2 * 0.95;
+        pts.push(new THREE.Vector3(
+          Math.cos(angle) * radius,
+          0,
+          Math.sin(angle) * radius
+        ));
+      }
+      return pts;
+    }
+
+    case 'loop': {
+      const [radius, loopH, loopW] = params;
+      const halfW = loopW / 2;
+      return [
+        new THREE.Vector3(-halfW, 0, 0),
+        new THREE.Vector3(-halfW * 0.4, loopH, radius),
+        new THREE.Vector3(halfW * 0.2, loopH * 1.5, 0),
+        new THREE.Vector3(halfW * 0.6, loopH, -radius),
+        new THREE.Vector3(halfW * 0.4, -loopH * 0.3, 0),
+        new THREE.Vector3(-halfW * 0.2, -loopH * 0.7, radius),
+        new THREE.Vector3(-halfW * 0.7, 0, 0),
+      ];
+    }
+
+    default:
+      return getPathPoints('gentle-wave');
+  }
+}
+
+// ============================================================
+// CANVAS TEXTURE GENERATOR
+// ============================================================
+function createTickerTexture(text, fontSize, textColor, bgColor) {
+  const offCanvas = document.createElement('canvas');
+  const offCtx = offCanvas.getContext('2d');
+
+  const font = `bold ${fontSize}px "Helvetica Neue", Arial, sans-serif`;
+  offCtx.font = font;
+  const textWidth = offCtx.measureText(text).width;
+  const metrics = offCtx.measureText(text);
+
+  const repeats = Math.max(3, Math.ceil(8192 / textWidth));
+  const canvasWidth = Math.min(16384, Math.ceil(textWidth * repeats));
+  const ascent = metrics.actualBoundingBoxAscent || fontSize * 0.8;
+  const descent = metrics.actualBoundingBoxDescent || fontSize * 0.2;
+  const textHeight = Math.ceil(ascent + descent);
+  const canvasHeight = Math.max(textHeight, fontSize);
+
+  offCanvas.width = canvasWidth;
+  offCanvas.height = canvasHeight;
+
+  offCtx.fillStyle = bgColor;
+  offCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+  offCtx.font = font;
+  offCtx.fillStyle = textColor;
+  offCtx.textBaseline = 'alphabetic';
+  offCtx.textAlign = 'left';
+
+  const yBaseline = ascent;
+  for (let i = 0; i < repeats + 1; i++) {
+    offCtx.fillText(text, i * textWidth, yBaseline);
+  }
+
+  const texture = new THREE.CanvasTexture(offCanvas);
+  texture.flipY = false;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+  return texture;
+}
+
+function createPerSideTextures(text, fontSize, textColors, sideColors) {
+  return sideColors.map((bgColor, i) => createTickerTexture(text, fontSize, textColors[i], bgColor));
+}
+
+// ============================================================
+// MESH BUILDER
+// ============================================================
+let tickerMesh = null;
+let tickerTextures = [];
+let currentSideFlipU = [];
+// Cached data for twist animation (avoids full rebuild each frame)
+let cachedCurve = null;
+let cachedProfilePts = null;
+let cachedSteps = 0;
+let cachedTwistCount = 0;
+let cachedWStart = 1;
+let cachedWMid = 1;
+let cachedWEnd = 1;
+let cachedSubdiv = 1;
+
+function updateTwistVertices(geometry, curve, profilePts, steps, baseTwist, twistOffset, wStart, wMid, wEnd, subdiv) {
+  const N = profilePts.length;
+  const frames = curve.computeFrenetFrames(steps, false);
+  const posArr = geometry.attributes.position.array;
+  let vi = 0;
+
+  for (let e = 0; e < N; e++) {
+    const eNext = (e + 1) % N;
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const center = curve.getPointAt(t);
+      const N_vec = frames.normals[s];
+      const B_vec = frames.binormals[s];
+      const twistAngle = t * Math.PI * 2 * (baseTwist + twistOffset);
+      const cosA = Math.cos(twistAngle);
+      const sinA = Math.sin(twistAngle);
+      const rN_x = N_vec.x * cosA + B_vec.x * sinA;
+      const rN_y = N_vec.y * cosA + B_vec.y * sinA;
+      const rN_z = N_vec.z * cosA + B_vec.z * sinA;
+      const rB_x = -N_vec.x * sinA + B_vec.x * cosA;
+      const rB_y = -N_vec.y * sinA + B_vec.y * cosA;
+      const rB_z = -N_vec.z * sinA + B_vec.z * cosA;
+      const wScale = widthEnvelope(t, wStart, wMid, wEnd);
+
+      for (let d = 0; d <= subdiv; d++) {
+        const frac = d / subdiv;
+        const px = (profilePts[e].x * (1 - frac) + profilePts[eNext].x * frac) * wScale;
+        const py = (profilePts[e].y * (1 - frac) + profilePts[eNext].y * frac) * wScale;
+
+        posArr[vi * 3] = center.x + px * rN_x + py * rB_x;
+        posArr[vi * 3 + 1] = center.y + px * rN_y + py * rB_y;
+        posArr[vi * 3 + 2] = center.z + px * rN_z + py * rB_z;
+        vi++;
+      }
+    }
+  }
+  geometry.attributes.position.needsUpdate = true;
+  geometry.computeVertexNormals();
+}
+
+function disposeMesh() {
+  if (tickerMesh) {
+    scene.remove(tickerMesh);
+    tickerMesh.geometry.dispose();
+    if (Array.isArray(tickerMesh.material)) {
+      tickerMesh.material.forEach(m => m.dispose());
+    } else {
+      tickerMesh.material.dispose();
+    }
+    tickerMesh = null;
+  }
+  tickerTextures.forEach(t => t.dispose());
+  tickerTextures = [];
+}
+
+function getSideColors(numSides) {
+  const palette = [
+    controls.get('sideColor1'),
+    controls.get('sideColor2'),
+    controls.get('sideColor3'),
+    controls.get('sideColor4'),
+  ];
+  const colors = [];
+  for (let i = 0; i < numSides; i++) {
+    colors.push(palette[i % palette.length]);
+  }
+  return colors;
+}
+
+function getTextColors(numSides) {
+  const palette = [
+    controls.get('textColor1'),
+    controls.get('textColor2'),
+    controls.get('textColor3'),
+    controls.get('textColor4'),
+  ];
+  const colors = [];
+  for (let i = 0; i < numSides; i++) {
+    colors.push(palette[i % palette.length]);
+  }
+  return colors;
+}
+
+function buildTickerMesh() {
+  disposeMesh();
+
+  const profileType = controls.get('profileShape');
+  const profileScale = controls.get('profileScale');
+  const pathPreset = controls.get('pathPreset');
+  const twistCount = controls.get('twistCount');
+  const pathSteps = controls.get('pathSteps');
+  const tickerText = controls.get('tickerText') || 'TICKER TEXT \\u2605 ';
+  const fontSize = controls.get('fontSize');
+  const textureStretch = controls.get('textureStretch');
+
+  const curve = new THREE.CatmullRomCurve3(getPathPoints(pathPreset), false, 'catmullrom', 0.5);
+  const profilePts = getProfilePoints(profileType, profileScale);
+  const numSides = profilePts.length;
+
+  // Cache for twist animation
+  cachedCurve = curve;
+  cachedProfilePts = profilePts;
+  cachedSteps = pathSteps;
+  cachedTwistCount = twistCount;
+  cachedWStart = controls.get('widthStart');
+  cachedWMid = controls.get('widthMid');
+  cachedWEnd = controls.get('widthEnd');
+  cachedSubdiv = controls.get('sideSubdivisions');
+
+  const wStart = controls.get('widthStart');
+  const wMid = controls.get('widthMid');
+  const wEnd = controls.get('widthEnd');
+  const sideSubdivisions = controls.get('sideSubdivisions');
+  const geometry = buildSweptGeometry(curve, profilePts, pathSteps, twistCount, textureStretch, wStart, wMid, wEnd, sideSubdivisions);
+
+  const sideColors = getSideColors(numSides);
+  const textColors = getTextColors(numSides);
+  tickerTextures = createPerSideTextures(tickerText, fontSize, textColors, sideColors);
+
+  const wireframe = controls.get('wireframe');
+  const materialType = controls.get('materialType');
+  const roughness = controls.get('roughness') / 100;
+  const metalness = controls.get('metalness') / 100;
+  const emissiveIntensity = controls.get('emissiveIntensity');
+
+  const materials = tickerTextures.map((tex, i) => {
+    const sideColor = sideColors[i] || '#1a1a2e';
+
+    if (materialType === 'emissive') {
+      return new THREE.MeshBasicMaterial({
+        map: tex,
+        side: THREE.DoubleSide,
+        wireframe: wireframe,
+        toneMapped: false,
+      });
+    } else if (materialType === 'glossy') {
+      return new THREE.MeshPhysicalMaterial({
+        map: tex,
+        roughness: roughness,
+        metalness: metalness,
+        clearcoat: 1.0,
+        clearcoatRoughness: roughness * 0.5,
+        reflectivity: 1.0,
+        emissive: new THREE.Color(sideColor),
+        emissiveIntensity: emissiveIntensity * 0.3,
+        side: THREE.DoubleSide,
+        wireframe: wireframe,
+      });
+    } else {
+      return new THREE.MeshStandardMaterial({
+        map: tex,
+        roughness: roughness,
+        metalness: metalness,
+        emissive: new THREE.Color(sideColor),
+        emissiveIntensity: emissiveIntensity * 0.15,
+        side: THREE.DoubleSide,
+        wireframe: wireframe,
+      });
+    }
+  });
+
+  tickerMesh = new THREE.Mesh(geometry, materials);
+
+  tickerMesh.rotation.x = THREE.MathUtils.degToRad(controls.get('pathRotX'));
+  tickerMesh.rotation.y = THREE.MathUtils.degToRad(controls.get('pathRotY'));
+  tickerMesh.rotation.z = THREE.MathUtils.degToRad(controls.get('pathRotZ'));
+
+  scene.add(tickerMesh);
+}
+
+function rebuildTexture() {
+  if (!tickerMesh) return;
+
+  const tickerText = controls.get('tickerText') || 'TICKER TEXT \\u2605 ';
+  const fontSize = controls.get('fontSize');
+  const profileType = controls.get('profileShape');
+  const profileScale = controls.get('profileScale');
+  const numSides = getProfilePoints(profileType, profileScale).length;
+  const sideColors = getSideColors(numSides);
+  const textColors = getTextColors(numSides);
+
+  tickerTextures.forEach(t => t.dispose());
+  tickerTextures = createPerSideTextures(tickerText, fontSize, textColors, sideColors);
+
+  if (Array.isArray(tickerMesh.material)) {
+    tickerMesh.material.forEach((mat, i) => {
+      if (i < tickerTextures.length) {
+        mat.map = tickerTextures[i];
+        mat.needsUpdate = true;
+      }
+    });
+  }
+}
+
+// ============================================================
+// DYNAMIC LABEL + VISIBILITY UPDATES
+// ============================================================
+function onPathPresetChange(newPreset) {
+  const defs = pathParamDefs[newPreset];
+  if (!defs) return;
+
+  updateLegend(newPreset);
+  lastPreset = newPreset;
+}
+
+// ============================================================
+// CONTROL CHANGE ROUTING
+// ============================================================
+const geometryKeys = new Set([
+  'profileShape', 'profileScale', 'pathPreset', 'twistCount', 'pathSteps', 'textureStretch',
+  'widthStart', 'widthMid', 'widthEnd',
+  'pathParam1', 'pathParam2', 'pathParam3', 'pathParam4',
+  'materialType', 'sideSubdivisions',
+]);
+const textureKeys = new Set(['tickerText', 'fontSize', 'textColor', 'sideColor1', 'sideColor2', 'sideColor3', 'sideColor4']);
+const materialPropKeys = new Set(['roughness', 'metalness', 'emissiveIntensity']);
+const orientationKeys = new Set(['pathRotX', 'pathRotY', 'pathRotZ']);
+
+controls.onAny((key, value) => {
+  if (key === 'pathPreset') {
+    onPathPresetChange(value);
+  }
+  if (geometryKeys.has(key)) {
+    buildTickerMesh();
+  } else if (textureKeys.has(key)) {
+    rebuildTexture();
+  } else if (materialPropKeys.has(key) && tickerMesh) {
+    const materialType = controls.get('materialType');
+    const r = controls.get('roughness') / 100;
+    const m = controls.get('metalness') / 100;
+    const ei = controls.get('emissiveIntensity');
+    if (Array.isArray(tickerMesh.material)) {
+      tickerMesh.material.forEach(mat => {
+        if (materialType !== 'emissive') {
+          mat.roughness = r;
+          mat.metalness = m;
+          if (mat.emissiveIntensity !== undefined) {
+            mat.emissiveIntensity = materialType === 'glossy' ? ei * 0.3 : ei * 0.15;
+          }
+          if (mat.clearcoatRoughness !== undefined) {
+            mat.clearcoatRoughness = r * 0.5;
+          }
+        }
+        mat.needsUpdate = true;
+      });
+    }
+  } else if (orientationKeys.has(key) && tickerMesh) {
+    tickerMesh.rotation.x = THREE.MathUtils.degToRad(controls.get('pathRotX'));
+    tickerMesh.rotation.y = THREE.MathUtils.degToRad(controls.get('pathRotY'));
+    tickerMesh.rotation.z = THREE.MathUtils.degToRad(controls.get('pathRotZ'));
+  } else if (key === 'wireframe' && tickerMesh) {
+    if (Array.isArray(tickerMesh.material)) {
+      tickerMesh.material.forEach(m => m.wireframe = value);
+    } else {
+      tickerMesh.material.wireframe = value;
+    }
+  }
+});
+
+controls.onAction('rebuild', () => {
+  buildTickerMesh();
+});
+
+// ============================================================
+// ANIMATION LOOP
+// ============================================================
+function animate() {
+  requestAnimationFrame(animate);
+
+  const delta = clock.getDelta();
+  const playing = controls.get('playing');
+
+  const lightIntensity = controls.get('lightIntensity');
+  dirLight1.intensity = lightIntensity;
+  dirLight2.intensity = lightIntensity * 0.5;
+  pointLight.intensity = lightIntensity * 0.75;
+
+  const cameraOrbit = controls.get('cameraOrbit');
+  const cameraOrbitSpeed = controls.get('cameraOrbitSpeed');
+  orbitControls.autoRotate = cameraOrbit && playing;
+  orbitControls.autoRotateSpeed = cameraOrbitSpeed * 2;
+
+  const meshRotateSpeed = controls.get('meshRotateSpeed');
+  if (tickerMesh && playing && meshRotateSpeed > 0) {
+    tickerMesh.rotation.y += delta * meshRotateSpeed * 0.5;
+  }
+
+  if (tickerTextures.length > 0 && playing) {
+    const scrollSpeed = controls.get('scrollSpeed');
+    const offsetDelta = delta * scrollSpeed * 0.2;
+    tickerTextures.forEach((tex) => {
+      tex.offset.x -= offsetDelta;
+    });
+  }
+
+  const twistAnimate = controls.get('twistAnimate');
+  if (twistAnimate && playing && tickerMesh && cachedCurve) {
+    const twistAnimSpeed = controls.get('twistAnimSpeed');
+    twistAnimOffset += delta * twistAnimSpeed * 0.3;
+    updateTwistVertices(
+      tickerMesh.geometry, cachedCurve, cachedProfilePts,
+      cachedSteps, cachedTwistCount, twistAnimOffset,
+      cachedWStart, cachedWMid, cachedWEnd, cachedSubdiv
+    );
+  }
+
+  orbitControls.update();
+  renderer.render(scene, camera);
+}
+
+// ============================================================
+// RESIZE HANDLER
+// ============================================================
+window.addEventListener('resize', () => {
+  camera.aspect = area.clientWidth / area.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(area.clientWidth, area.clientHeight);
+});
+
+// ============================================================
+// INITIAL BUILD & START
+// ============================================================
+lastPreset = controls.get('pathPreset');
+updateLegend(lastPreset);
+
+buildTickerMesh();
+animate();
+
+    // System Background Wiring
+    if (typeof CanvasRuntimeAPI !== 'undefined') {
+      var __sysBgVal = controls.get('__sys_bg');
+      if (__sysBgVal) CanvasRuntimeAPI.setBackground(__sysBgVal);
+    }
+  </script>
+</body>
+</html>
