@@ -122,11 +122,17 @@ $(window).on("scroll", function() {
   // --------------------------------------------- //
   // Header Scroll Behavior Start
   // --------------------------------------------- //
-  if($(window).scrollTop() > 10) {
-      $(".mxd-header").addClass("is-hidden");
-  } else {
-    $(".mxd-header").removeClass("is-hidden");
+  // hide while scrolling down, show again as soon as the user scrolls up a little
+  var st = $(window).scrollTop();
+  var last = window.__ybobLastScroll || 0;
+  if (st <= 10) {
+    $(".mxd-header").removeClass("is-hidden is-scrolled");
+  } else if (st > last + 4) {
+    $(".mxd-header").addClass("is-hidden is-scrolled");
+  } else if (st < last - 4) {
+    $(".mxd-header").removeClass("is-hidden").addClass("is-scrolled");
   }
+  if (Math.abs(st - last) > 4) window.__ybobLastScroll = st;
   // --------------------------------------------- //
   // Header Scroll Behavior End
   // --------------------------------------------- //

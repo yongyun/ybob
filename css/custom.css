@@ -212,3 +212,8 @@ a.hero-03-marquee__video {
   display: block;
   cursor: pointer;
 }
+
+/* ---------- Header: fixed logo, hides on scroll down, returns on scroll up ---------- */
+.mxd-header { position: fixed; }
+.mxd-header.is-hidden { transform: translateY(-120%); opacity: 0; pointer-events: none; }
+.mxd-header.menu-is-visible { transform: none; opacity: 1; pointer-events: auto; }

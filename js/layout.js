@@ -16,6 +16,13 @@
 (function () {
   "use strict";
 
+  // "All Works" button in the header, shown on project pages only
+  var isProject = /(^|\/)project-[^\/]*\.html$/.test(location.pathname);
+  var worksBtn = isProject ? `<a class="btn btn-anim btn-default btn-mobile-icon btn-outline slide-right" href="works.html" aria-label="All Works">
+      <span class="btn-caption">All Works</span>
+      <i class="ph-bold ph-squares-four"></i>
+    </a>` : "";
+
   var header = `
 <nav class="mxd-nav__wrap" data-lenis-prevent="">
 
@@ -119,6 +126,7 @@
   <!-- header controls -->
   <div class="mxd-header__controls loading__fade">
     <button id="color-switcher" class="mxd-color-switcher" type="button" role="switch" aria-label="light/dark mode" aria-checked="true"></button>
+    ${worksBtn}
   </div>
 </header>
 `;
@@ -204,7 +212,7 @@
                     c0,0,0-3.1,0-4.1c0-0.4,0.2-1.7,0.2-1.7c0.1-0.6,0.2-1.1,0.6-1.6c0.3-0.4,0.7-0.8,1.1-1.1c0.5-0.3,1-0.5,1.6-0.6
                     c0,0,1.3-0.1,1.8-0.2c1,0,4,0,4,0c0.2,0,0.4-0.2,0.4-0.4C20,9.8,19.8,9.6,19.6,9.6L19.6,9.6z"></path>
                 </svg>
-                <span>5</span>
+                <span>6</span>
               </p>
             </li>
             <li class="footer-nav__item anim-uni-in-up">

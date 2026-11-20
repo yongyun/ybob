@@ -37,7 +37,7 @@
     <!-- Template Styles Start -->
     <link rel="stylesheet" type="text/css" href="css/plugins.css">
     <link rel="stylesheet" type="text/css" href="css/main.css">
-    <link rel="stylesheet" type="text/css" href="css/custom.css?v=7">
+    <link rel="stylesheet" type="text/css" href="css/custom.css?v=8">
     <!-- Template Styles End -->
 
     <!-- Custom Browser Color Start -->
@@ -60,6 +60,17 @@
       @media only screen and (min-width: 768px) { .inner-headline__title.headline-img-works::before { width: 5.8rem; } }
       @media only screen and (min-width: 1200px) { .inner-headline__title.headline-img-works::before { width: 7rem; } }
       @media only screen and (min-width: 1600px) { .inner-headline__title.headline-img-works::before { width: 8.4rem; } }
+      /* bring the first section closer to the header */
+      .mxd-section-inner-headline.grid-headline { padding-top: 3rem; }
+      @media only screen and (min-width: 768px) { .mxd-section-inner-headline.grid-headline { padding-top: 4rem; } }
+      @media only screen and (min-width: 1600px) { .mxd-section-inner-headline.grid-headline { padding-top: 5rem; } }
+      /* works filter */
+      .works-filter { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 3.2rem; padding-right: 2rem; }
+      .works-filter__btn { cursor: pointer; border-style: solid; border-color: var(--st-medium); color: var(--t-medium);
+        background-color: transparent; transition: all var(--_animspeed-medium) var(--_animbezier); }
+      .no-touch .works-filter__btn:hover { border-color: var(--st-bright); color: var(--t-bright); }
+      .works-filter__btn.is-active, .no-touch .works-filter__btn.is-active:hover { background-color: var(--base-opp); border-color: var(--base-opp); color: var(--t-opp-bright); }
+      .mxd-projects-masonry__item.is-filtered-out { display: none; }
     </style>
     <!-- Works Page Styles End -->
 
@@ -90,9 +101,17 @@
                     <div class="mxd-block__inner-headline">
                       <h1 class="inner-headline__title headline-img-before headline-img-works">Selected<br>works</h1>
                     </div>
+                    <!-- works filter -->
+                    <div class="works-filter" role="group" aria-label="Filter works by field">
+                      <button type="button" class="tag tag-default works-filter__btn is-active" data-filter="all" aria-pressed="true">All</button>
+                      <button type="button" class="tag tag-default works-filter__btn" data-filter="uiux" aria-pressed="false">Front-end &amp; UI/UX</button>
+                      <button type="button" class="tag tag-default works-filter__btn" data-filter="branding" aria-pressed="false">Branding</button>
+                      <button type="button" class="tag tag-default works-filter__btn" data-filter="graphic" aria-pressed="false">Graphic</button>
+                      <button type="button" class="tag tag-default works-filter__btn" data-filter="motion" aria-pressed="false">Motion Graphic</button>
+                    </div>
                   </div>
                   <!-- portfolio gallery single item -->
-                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item">
+                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item" data-cat="graphic">
                     <a class="mxd-project-item__media masonry-media" href="project-worldcup.html">
                       <div class="mxd-project-item__preview masonry-preview parallax-img-small" style="background-image: url('project/2_2026world%20cup/wc-covers-dark.jpg');"></div>
                       <div class="mxd-project-item__tags">
@@ -108,7 +127,7 @@
                     </div>
                   </div>
                   <!-- portfolio gallery single item -->
-                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item">
+                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item" data-cat="uiux branding">
                     <a class="mxd-project-item__media masonry-media" href="project-omo.html">
                       <div class="mxd-project-item__preview masonry-preview parallax-img-small" style="background-image: url('project/1_2026omo/omo-scent-library.jpg');"></div>
                       <div class="mxd-project-item__tags">
@@ -124,9 +143,9 @@
                     </div>
                   </div>
                   <!-- portfolio gallery single item -->
-                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item">
+                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item" data-cat="graphic">
                     <a class="mxd-project-item__media masonry-media" href="project-euro.html">
-                      <div class="mxd-project-item__preview masonry-preview parallax-img-small" style="background-image: url('project/4_2024euro%20cup/eu-hero-sticker-cover.jpg');"></div>
+                      <div class="mxd-project-item__preview masonry-preview parallax-img-small" style="background-image: url('project/4_2024euro%20cup/eu-mockup-united.jpg');"></div>
                       <div class="mxd-project-item__tags">
                         <span class="tag tag-default tag-permanent">Editorial design</span>
                         <span class="tag tag-default tag-permanent">Infographic</span>
@@ -140,7 +159,7 @@
                     </div>
                   </div>
                   <!-- portfolio gallery single item -->
-                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item">
+                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item" data-cat="motion">
                     <a class="mxd-project-item__media masonry-media" href="project-starbucks.html">
                       <div class="mxd-project-item__preview masonry-preview parallax-img-small" style="background-image: url('project/3_2022Starbucks/sb-house-2-poster.jpg');"></div>
                       <div class="mxd-project-item__tags">
@@ -155,11 +174,29 @@
                       </div>
                     </div>
                   </div>
+                  <!-- portfolio gallery single item -->
+                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item" data-cat="branding">
+                    <a class="mxd-project-item__media masonry-media" href="project-medpersona.html">
+                      <div class="mxd-project-item__preview masonry-preview parallax-img-small" style="background-image: url('project/6_MED/med-logo-poster-01.png');"></div>
+                      <div class="mxd-project-item__tags">
+                        <span class="tag tag-default tag-permanent">Branding design</span>
+                        <span class="tag tag-default tag-permanent">Logo</span>
+                        <span class="tag tag-default tag-permanent">CIS</span>
+                      </div>
+                    </a>
+                    <div class="mxd-project-item__promo">
+                      <div class="mxd-project-item__name">
+                        <a href="project-medpersona.html"><span>MedPersona</span> — brand identity for a medical podcast platform</a>
+                      </div>
+                    </div>
+                  </div>
 
                   <!-- portfolio gallery single item -->
-                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item">
+                  <div class="col-12 col-xl-6 mxd-project-item mxd-projects-masonry__item" data-cat="motion">
                     <a class="mxd-project-item__media masonry-media" href="project-sandee-chen.html">
-                      <div class="mxd-project-item__preview masonry-preview parallax-img-small" style="background-image: url('project/5_2017陳珊妮/sc-stage-1770.jpg');"></div>
+                      <div class="mxd-project-item__preview masonry-preview">
+                        <video src="project/5_2017陳珊妮/陳珊妮演唱會6502.mp4" poster="project/5_2017陳珊妮/sc-6502-poster.jpg" autoplay muted loop playsinline preload="metadata" aria-label="Sandee Chen 6502 red room animation" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;"></video>
+                      </div>
                       <div class="mxd-project-item__tags">
                         <span class="tag tag-default tag-permanent">Projection design</span>
                         <span class="tag tag-default tag-permanent">Animation</span>
@@ -197,9 +234,38 @@
     <!-- To Top Button End -->
 
     <!-- Load Scripts Start -->
-    <script src="js/layout.js?v=7"></script>
+    <script src="js/layout.js?v=9"></script>
     <script src="js/libs.min.js"></script>
-    <script src="js/app.js?v=5"></script>
+    <script src="js/app.js?v=6"></script>
+    <script>
+      // works filter: show only the projects in the chosen field, then re-run the masonry layout
+      (function () {
+        var grid = document.querySelector(".mxd-projects-masonry__gallery");
+        var buttons = document.querySelectorAll(".works-filter__btn");
+        if (!grid || !buttons.length) return;
+        function apply(filter) {
+          grid.querySelectorAll(".mxd-projects-masonry__item").forEach(function (item) {
+            var cats = (item.getAttribute("data-cat") || "").split(" ");
+            item.classList.toggle("is-filtered-out", filter !== "all" && cats.indexOf(filter) === -1);
+          });
+          buttons.forEach(function (b) {
+            var on = b.getAttribute("data-filter") === filter;
+            b.classList.toggle("is-active", on);
+            b.setAttribute("aria-pressed", on ? "true" : "false");
+          });
+          var msnry = window.jQuery && jQuery(grid).data("masonry");
+          if (msnry) {
+            msnry.options.itemSelector = ".mxd-projects-masonry__title, .mxd-projects-masonry__item:not(.is-filtered-out)";
+            msnry.reloadItems();
+            msnry.layout();
+          }
+          if (window.ScrollTrigger) setTimeout(function () { ScrollTrigger.refresh(); }, 450);
+        }
+        buttons.forEach(function (b) {
+          b.addEventListener("click", function () { apply(b.getAttribute("data-filter")); });
+        });
+      })();
+    </script>
     <!-- Load Scripts End -->
 
   </body>
